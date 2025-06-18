@@ -1,0 +1,80 @@
+import streamlit as st
+import pandas as pd
+import numpy as np
+from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import LabelEncoder
+
+st.title("📊 LMS Prediksi Kelulusan Pelatihan Excel - Model Regresi")
+
+# Upload dataset
+uploaded_file = st.file_uploader("Unggah Dataset Peserta (Excel)", type=["xlsx"])
+
+if uploaded_file:
+    df = pd.read_excel(uploaded_file)
+
+    # Rename kolom agar sesuai dengan format model regresi
+    df = df.rename(columns={
+        'Partisipasi': 'partisipasi_forum',
+        'Kehadiran': 'total_login',
+        'status_kelulusan': 'Status_Kelulusan'
+    })
+
+    # Hapus tanda persen dan ubah ke float
+    df['partisipasi_forum'] = df['partisipasi_forum'].astype(str).str.replace('%', '').astype(float)
+    df['total_login'] = df['total_login'].astype(float)
+
+    # Tambahkan kolom dummy untuk materi dan skor jika tidak ada
+    if 'materi_selesai' not in df.columns:
+        df['materi_selesai'] = 50
+    if 'skor_kuis_rata2' not in df.columns:
+        df['skor_kuis_rata2'] = 75.0
+    if 'durasi_total_akses' not in df.columns:
+        df['durasi_total_akses'] = 30.0
+
+    # Encode target
+    df['Status_Kelulusan'] = df['Status_Kelulusan'].map({'Lulus': 1, 'Tidak Lulus': 0})
+
+    expected_columns = {'total_login', 'materi_selesai', 'skor_kuis_rata2', 'partisipasi_forum', 'durasi_total_akses', 'Status_Kelulusan'}
+    if expected_columns.issubset(df.columns):
+        st.subheader("📋 Pratinjau Data")
+        st.dataframe(df.head())
+
+        # Model
+        model = LogisticRegression()
+        X = df[['total_login', 'materi_selesai', 'skor_kuis_rata2', 'partisipasi_forum', 'durasi_total_akses']]
+        y = df['Status_Kelulusan']
+        model.fit(X, y)
+
+        st.subheader("🔍 Prediksi Kelulusan Peserta Baru")
+        login = st.number_input("Total Login", min_value=0, value=10)
+        materi = st.number_input("Materi Selesai", min_value=0, value=50)
+        skor = st.slider("Skor Kuis Rata-rata", 0.0, 100.0, 75.0)
+        forum = st.number_input("Partisipasi Forum", min_value=0, value=10)
+        durasi = st.number_input("Durasi Total Akses (menit)", min_value=0.0, value=30.0)
+
+        if st.button("Prediksi Kelulusan"):
+            data = np.array([[login, materi, skor, forum, durasi]])
+            prob = model.predict_proba(data)[0][1]
+            status = "LULUS" if prob >= 0.5 else "TIDAK LULUS"
+            st.success(f"✅ Prediksi Status: **{status}** dengan probabilitas {prob:.4f}")
+
+        st.subheader("📦 Aturan Akses Modul")
+        if st.button("Cek Akses ke Modul Lanjutan"):
+            if prob >= 0.5:
+                st.info("🔓 Akses DIBERIKAN ke modul lanjutan.")
+            else:
+                st.warning("🔒 Akses DITOLAK. Peserta belum memenuhi syarat kelulusan.")
+
+        st.subheader("📁 Simulasi Dokumen & Metadata")
+        dokumen = pd.DataFrame({
+            'NamaDokumen': ['Modul Excel Dasar', 'Modul Excel Lanjutan'],
+            'Kategori': ['modul', 'modul'],
+            'Kata_Kunci': ['excel, dasar', 'excel, lanjutan, formula'],
+            'Versi': ['1.0', '2.1'],
+            'Tahun': [2023, 2024]
+        })
+        st.dataframe(dokumen)
+    else:
+        st.error("Dataset tidak sesuai. Wajib memiliki kolom: total_login, materi_selesai, skor_kuis_rata2, partisipasi_forum, durasi_total_akses, Status_Kelulusan")
+else:
+    st.info("Silakan unggah file Excel terlebih dahulu untuk mulai.")
