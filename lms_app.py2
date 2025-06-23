@@ -1,0 +1,54 @@
+import pandas as pd
+import streamlit as st
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import classification_report
+
+st.title("Prediksi Status Kelulusan Mahasiswa")
+
+# Upload file CSV
+uploaded_file = st.file_uploader("Upload file CSV", type=["csv"])
+if uploaded_file:
+    df = pd.read_csv(uploaded_file)
+
+    # Tampilkan data awal
+    st.subheader("Data Awal")
+    st.dataframe(df.head())
+
+    # Hitung Status_Kelulusan berdasarkan aturan logika
+    df['Status_Kelulusan'] = (
+        (df['skor_kuis_rata2'] > 60) &
+        (df['jumlah_tugas_dikumpulkan'] > 5) &
+        (df['durasi_total_akses'] > 50) &
+        (df['status_akademik_terakhir'] != 'IPK < 2.5')
+    ).astype(int)
+
+    # Pilih fitur
+    fitur = [
+        'total_login', 'materi_selesai', 'skor_kuis_rata2',
+        'partisipasi_forum', 'durasi_total_akses', 'interaksi_mingguan',
+        'jumlah_tugas_dikumpulkan', 'frekuensi_kuis', 'aktivitas_mobile'
+    ]
+    
+    # Bersihkan data dari NaN
+    data_model = df[fitur + ['Status_Kelulusan']].dropna()
+
+    X = data_model[fitur]
+    y = data_model['Status_Kelulusan'].astype(int)
+
+    # Split train-test
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+    # Train model
+    model = LogisticRegression(max_iter=1000)
+    model.fit(X_train, y_train)
+
+    # Prediksi & evaluasi
+    y_pred = model.predict(X_test)
+    report = classification_report(y_test, y_pred, output_dict=False)
+
+    # Tampilkan hasil
+    st.subheader("Laporan Klasifikasi")
+    st.text(report)
+
+    st.success("Model berhasil dilatih tanpa error!")
